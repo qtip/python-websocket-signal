@@ -3,11 +3,16 @@ from SocketServer import TCPServer, ThreadingMixIn, BaseRequestHandler
 from sys import argv
 from string import count, rjust
 from hashlib import md5
+from threading import Thread
+from time import sleep
+import json
 
 class ThreadingTCPServer(ThreadingMixIn, TCPServer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, websocketserver, *args, **kwargs):
         TCPServer.__init__(self, *args, **kwargs)
+        self.websocketserver = websocketserver
         self.connections = dict()
+        self.daemon_threads = True
         
     def get_request(self):
         request, client_address = TCPServer.get_request(self)
@@ -16,7 +21,9 @@ class ThreadingTCPServer(ThreadingMixIn, TCPServer):
     def send_to_all(self, msg):
         for client_address, connection in self.connections.iteritems():
             connection.send(msg)
-    
+    def send_to_client(self, client_address, msg):
+        self.connections[client_address].send(msg)
+        
 def number_to_bytes(n):
     out = ''
     while n > 0:
@@ -63,23 +70,92 @@ class WebSocketTCPHandler(BaseRequestHandler):
                     break
                 msg = request[1:-1]
                 print repr(msg)
-                print repr(request[0])
-                print repr(request[-1])
-                if msg == 'hi':
-                    self.server.send_to_all(websocket_msg('why hello there'))
-                elif msg == 'exit':
-                    self.server.shutdown()
+                # fire event
+                self.server.websocketserver.onmessage(self, self.request, msg)
+                
         else:
             # not a websocket request.
             print 'failure'
+
+class WebSocketServer(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+        self.server = None
+        self.running = True
+    def start(self, host='127.0.0.1', port=8080, *args, **kwargs):
+        self.host = host
+        self.port = port
+        Thread.start(self, *args, **kwargs)
+    def run(self):
+        self.server = ThreadingTCPServer(self, (self.host, int(self.port)), WebSocketTCPHandler)
+        self.server.serve_forever()
+    def clients(self):
+        return self.server.connections.keys()
+    def send_to_all(self, msg):
+        self.server.send_to_all(websocket_msg(msg))
+    def send_to_client(self, client_address, msg):
+        self.server.send_to_client(client_address, websocket_msg(msg))
+    def stop(self):
+        self.server.shutdown()
+    def onopen(self, socket):
+        pass
+    def onmessage(self, socket, message):
+        pass
+    def onerror(self):
+        pass
+    def onclose(self):
+        pass
+
+class WebSocketRemoteFunctionCaller(WebSocketServer):
+    def __init__(self, *args, **kwargs):
+        self.remote_functions = dict()
+        WebSocketServer.__init__(self, *args, **kwargs)
+    class RemoteFunctionCallThread(Thread):
+        def __init__(self, parent_server, lock):
+            Thread.__init__(self)
+            self.parent_server = parent_server
+            self.lock = lock
+        def run(self):
+            lock
+            
+    def remote_function(web_socket_server):
+        def decorator(function):
+            web_socket_server.remote_functions[function.__name__] = function.func_code.co_varnames
+            def replacer(*args):
+                if len(args) > len(function.func_code.co_varnames):
+                    client = args[-1]
+                else:
+                    client = None
+                data = json.dumps((function.__name__, ) + args)
+                if client:
+                    web_socket_server.send_to_client(client, data)
+                else:
+                    web_socket_server.send_to_all(data)
+                return None
+            return replacer
+        return decorator
+
+def myonmessage(ws, client, data):
+    print "MY ON MESSAGE %s" % data
+    if data == 'hi':
+        self.server.send_to_all(websocket_msg('why hello there'))
+    elif data == 'exit':
+        self.server.shutdown()
+
+
 
 if __name__ == "__main__":
     try:
         port = int(argv[1])
     except IndexError:
         port = 8080
-    server = ThreadingTCPServer(('127.0.0.1', port), WebSocketTCPHandler)
-    try:
-        server.serve_forever()
-    except (KeyboardInterrupt):
-        exit()
+    ws = WebSocketRemoteFunctionCaller()
+    ws.onmessage = myonmessage
+    ws.start('127.0.0.1', port)
+    @WebSocketRemoteFunctionCaller.remote_function(ws)
+    def shoop(x, y): pass
+    sleep(2)
+    shoop(1,2)
+    sleep(6)
+    ws.stop()
+    exit()
