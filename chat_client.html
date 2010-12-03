@@ -1,0 +1,56 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Chat Client</title>
+    <script type="text/javascript" src="websocketremotefunctioncaller.js"></script>
+    <script type="text/javascript">
+               
+        var rfc = new WebSocketRemoteFunctionCaller("ws://127.0.0.1:8080");
+        
+        rfc.onopen = function() {
+            log("Connection Opened.");
+        };
+
+        rfc.onclose = function() {
+            log("Connection Closed.");
+        };
+        
+        function log(msg){
+            e = document.getElementById("chat_log");
+            e.innerHTML = e.innerHTML + "<li>" + msg + "</li>";
+        }
+        
+        // Callable by the server
+        function from_others(agent, msg){
+            log(agent + ': "' + msg + '"');
+        }
+        rfc.client_function(from_others);
+        
+        function joined_chat(agent){
+            log(agent + " joined the chat.");
+        }
+        rfc.client_function(joined_chat);
+        
+        // Available on the server
+        function message(msg){}
+        message = rfc.server_function(message, null);
+        
+        // events
+        function onsend(){
+            msg = document.getElementById("data").value;
+            document.getElementById("data").value = "";
+            message(msg);
+            log('You: "' + msg + '"');
+        }
+        
+    </script>
+  </head>
+  <body>
+    <input type="text" id="data" onkeyup="if(event.keyCode==13){onsend();}" />
+    <button onclick='onsend()'>send</button>
+    <br/>
+    <ul id="chat_log">
+    </ul>
+  </body>
+</html>

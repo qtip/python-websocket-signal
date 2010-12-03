@@ -1,0 +1,101 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Game Client</title>
+    <script type="text/javascript" src="websocketremotefunctioncaller.js"></script>
+    <script type="text/javascript">
+               
+        var rfc = new WebSocketRemoteFunctionCaller("ws://127.0.0.1:8080");
+        
+        rfc.onopen = function() {
+            console.log("Connection Opened.");
+        };
+
+        rfc.onclose = function() {
+            console.log("Connection Closed.");
+        };
+        
+        var x = y = 0;
+        var width=640;
+        var height=480;
+        var block=20;
+        
+        function draw() {  
+            var canvas = document.getElementById("screen");  
+            if (canvas.getContext) {  
+                var ctx = canvas.getContext("2d");  
+                ctx.clearRect(0,0,width,height);
+                ctx.fillStyle = "rgb(200,0,0)";  
+                ctx.fillRect (x*block, y*block, block, block);
+                for(var agent_k in agents){
+                    agent = agents[agent_k]
+                    if(agent != null){
+                        ctx.fillStyle = "rgb(0,0,200)";  
+                        ctx.fillRect (agent.x*block, agent.y*block, block, block);
+                    }
+                }
+            }
+        }
+        
+        var agents = {};
+        
+        // Local Functions
+        function agent_exit(agent){
+            agents[agent] = null;
+            draw();
+        }
+        rfc.client_function(agent_exit);
+        
+        function agent_update(agent, x, y){
+            agents[agent] = {'x': x, 'y': y};
+            draw();
+        }
+        rfc.client_function(agent_update);
+        
+        // Remote Functions
+        function broadcast_position(x, y){}
+        broadcast_position = rfc.server_function(broadcast_position, null);
+        
+        function end(){}
+        end = rfc.server_function(end, null);
+        
+        LEFT = 37
+        UP = 38
+        RIGHT = 39
+        DOWN = 40
+        // events
+        function keyup(){
+            var new_x = x;
+            var new_y = y;
+            switch(event.keyCode){
+                case LEFT:
+                    new_x = Math.max(x-1, 0);
+                    break;
+                case UP:
+                    new_y = Math.max(y-1, 0);
+                    break;
+                case RIGHT:
+                    new_x = Math.min(x+1, width/block-1);
+                    break;
+                case DOWN:
+                    new_y = Math.min(y+1, height/block-1);
+                    break;
+            }
+            if(new_x != x || new_y != y){
+                if(new_x != x) console.log(new_x);
+                if(new_y != y) console.log(new_y);
+                x = new_x;
+                y = new_y;
+                draw();
+                broadcast_position(x,y);
+            }
+        }
+        
+    </script>
+  </head>
+  <body onload="draw();" onkeydown="keyup();">
+    <h1>Game test</h2>
+    <canvas id="screen" width="640" height="480"></canvas>
+  </body>
+</html>
