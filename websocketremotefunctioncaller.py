@@ -3,7 +3,6 @@ from string import count, rjust
 from hashlib import md5
 from threading import Thread, Event
 import json
-import random
 import datetime
 
 class ThreadingTCPServer(ThreadingMixIn, TCPServer):
@@ -154,12 +153,10 @@ class WaitingCall:
             return out
     
 class ReturnValueKeeper:
-    sample = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZCVBNM1234567890!@#%^&*"
     
     def __init__(self):
         # key=random key, value = WaitingCall instance
         self.waiting_calls = dict()
-        random.seed()
     
     def new_call(self, clients, is_specific_client_call):
         """
